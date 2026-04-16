@@ -16,13 +16,12 @@ A lightweight Windows utility that simulates an F15 keypress on a regular interv
 
 1. **Clone or download** this repository to any folder on your PC.
 
-2. **Open a terminal** (PowerShell or Command Prompt) in that folder.
+2. **Double-click `keep_awake.bat`** — this is the easiest way to launch the script. It starts Python in the background with no console window.
 
-3. **Run the script:**
-
-```powershell
-python keep_awake.py
-```
+   > Alternatively, open a terminal (PowerShell or Command Prompt) in the folder and run:
+   > ```powershell
+   > python keep_awake.py
+   > ```
 
 On first run, if the optional tray icon packages are not installed, the script will detect this and ask:
 
