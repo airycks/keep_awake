@@ -18,6 +18,8 @@ import sys
 import time
 import argparse
 import signal
+import os
+import logging
 import subprocess
 import threading
 import winreg
@@ -25,6 +27,14 @@ from ctypes import wintypes
 
 if sys.platform != "win32":
     raise SystemExit("This script only runs on Windows (win32).")
+
+# Log file next to the script so errors are visible even without a console
+_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "keep_awake.log")
+logging.basicConfig(
+    filename=_LOG_PATH,
+    level=logging.WARNING,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
 
 # Windows constants
 INPUT_KEYBOARD = 1
@@ -55,21 +65,27 @@ class INPUT(ctypes.Structure):
 
 
 def send_key(vk_code: int) -> None:
-    """Send a single key press (down + up) for the given virtual-key code."""
-    # key down
-    inp = INPUT()
-    inp.type = INPUT_KEYBOARD
-    inp.union.ki = KEYBDINPUT(vk_code, 0, 0, 0, 0)
-    if user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp)) != 1:
-        raise ctypes.WinError(ctypes.get_last_error())
-    # tiny pause
-    time.sleep(0.02)
-    # key up
-    inp_up = INPUT()
-    inp_up.type = INPUT_KEYBOARD
-    inp_up.union.ki = KEYBDINPUT(vk_code, 0, KEYEVENTF_KEYUP, 0, 0)
-    if user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(inp_up)) != 1:
-        raise ctypes.WinError(ctypes.get_last_error())
+    """Send a single key press (down + up). Tries SendInput first, falls back to keybd_event."""
+    try:
+        # key down
+        inp = INPUT()
+        inp.type = INPUT_KEYBOARD
+        inp.union.ki = KEYBDINPUT(vk_code, 0, 0, 0, 0)
+        if user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp)) != 1:
+            raise ctypes.WinError(ctypes.get_last_error())
+        time.sleep(0.02)
+        # key up
+        inp_up = INPUT()
+        inp_up.type = INPUT_KEYBOARD
+        inp_up.union.ki = KEYBDINPUT(vk_code, 0, KEYEVENTF_KEYUP, 0, 0)
+        if user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(inp_up)) != 1:
+            raise ctypes.WinError(ctypes.get_last_error())
+    except OSError as e:
+        # SendInput blocked (e.g. UIPI on corporate machines) — fall back to keybd_event
+        logging.warning("SendInput failed (%s), falling back to keybd_event", e)
+        ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0)
+        time.sleep(0.02)
+        ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
 
 
 def hide_console() -> None:
@@ -91,8 +107,7 @@ def worker_loop(interval: float, stop_event: threading.Event, running_event: thr
             try:
                 send_key(VK_F15)
             except Exception as e:
-                # ignore single-send failures; keep running
-                print(f"send_key error: {e}")
+                logging.error("send_key error: %s", e)
             # sleep for the configured interval
             # check stop_event periodically if interval is large
             waited = 0.0
