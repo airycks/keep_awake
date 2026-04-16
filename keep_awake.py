@@ -23,7 +23,6 @@ import logging
 import subprocess
 import threading
 import winreg
-from ctypes import wintypes
 
 if sys.platform != "win32":
     raise SystemExit("This script only runs on Windows (win32).")
@@ -37,55 +36,17 @@ logging.basicConfig(
 )
 
 # Windows constants
-INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
 
 # Virtual-Key code for F15: VK_F1 (0x70) + 14 = 0x7E
 VK_F15 = 0x70 + 14
 
-user32 = ctypes.WinDLL('user32', use_last_error=True)
-
-
-class KEYBDINPUT(ctypes.Structure):
-    _fields_ = [
-        ("wVk", wintypes.WORD),
-        ("wScan", wintypes.WORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.c_size_t),
-    ]
-
-
-class INPUTunion(ctypes.Union):
-    _fields_ = [("ki", KEYBDINPUT)]
-
-
-class INPUT(ctypes.Structure):
-    _fields_ = [("type", wintypes.DWORD), ("union", INPUTunion)]
-
 
 def send_key(vk_code: int) -> None:
-    """Send a single key press (down + up). Tries SendInput first, falls back to keybd_event."""
-    try:
-        # key down
-        inp = INPUT()
-        inp.type = INPUT_KEYBOARD
-        inp.union.ki = KEYBDINPUT(vk_code, 0, 0, 0, 0)
-        if user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp)) != 1:
-            raise ctypes.WinError(ctypes.get_last_error())
-        time.sleep(0.02)
-        # key up
-        inp_up = INPUT()
-        inp_up.type = INPUT_KEYBOARD
-        inp_up.union.ki = KEYBDINPUT(vk_code, 0, KEYEVENTF_KEYUP, 0, 0)
-        if user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(inp_up)) != 1:
-            raise ctypes.WinError(ctypes.get_last_error())
-    except OSError as e:
-        # SendInput blocked (e.g. UIPI on corporate machines) — fall back to keybd_event
-        logging.warning("SendInput failed (%s), falling back to keybd_event", e)
-        ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0)
-        time.sleep(0.02)
-        ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+    """Send a single key press (down + up) for the given virtual-key code."""
+    ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0)
+    time.sleep(0.02)
+    ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
 
 
 def hide_console() -> None:
