@@ -137,6 +137,13 @@ def set_startup_enabled(enabled: bool) -> None:
                 pass
 
 
+def _msgbox(title: str, text: str, style: int) -> int:
+    """Show a Win32 MessageBox and return the button pressed.
+    style flags: 0x4 = Yes/No, 0x40 = info icon. Returns 6 for Yes, 7 for No.
+    """
+    return ctypes.windll.user32.MessageBoxW(0, text, title, style)
+
+
 def check_prerequisites() -> None:
     """Check for optional tray dependencies; offer to install if missing."""
     missing = []
@@ -152,28 +159,24 @@ def check_prerequisites() -> None:
     if not missing:
         return
 
-    print("keep_awake: the following optional packages are not installed:")
-    for pkg in missing:
-        print(f"  - {pkg}")
-    print("These are required for the system-tray icon (--tray mode).")
+    pkg_list = "\n".join(f"  • {p}" for p in missing)
+    message = (
+        "The following packages are needed for the system-tray icon:\n\n"
+        f"{pkg_list}\n\n"
+        "Install them now?"
+    )
+    # MB_YESNO | MB_ICONQUESTION
+    answer = _msgbox("keep_awake – Missing Dependencies", message, 0x4 | 0x20)
 
-    try:
-        answer = input("Install them now? [y/N] ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        answer = ""
-
-    if answer == "y":
-        print("Installing packages...")
+    if answer == 6:  # IDYES
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install"] + missing,
             check=False,
         )
-        if result.returncode == 0:
-            print("Installation complete. Continuing...\n")
-        else:
-            print("Installation failed. Falling back to console mode.\n")
+        if result.returncode != 0:
+            _msgbox("keep_awake", "Installation failed. Falling back to console mode.", 0x10)
     else:
-        print("Skipping install. Tray mode will be unavailable; running in console mode.\n")
+        pass  # user declined; fall through to console mode
 
 
 def main() -> None:
