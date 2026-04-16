@@ -52,7 +52,7 @@ class KEYBDINPUT(ctypes.Structure):
         ("wScan", wintypes.WORD),
         ("dwFlags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.c_ulong),
+        ("dwExtraInfo", ctypes.c_size_t),
     ]
 
 
